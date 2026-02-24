@@ -395,26 +395,39 @@ def invoke_agent_runtime(session_id, user_id, actor_id, channel, message):
 # ---------------------------------------------------------------------------
 
 def _extract_text_from_content_blocks(text):
-    """Extract plain text if the response is a JSON array of content blocks.
+    """Extract plain text if the response is a JSON content block or array.
 
-    AI responses sometimes arrive wrapped as: [{"type":"text","text":"..."}]
+    AI responses sometimes arrive wrapped as:
+    - Single block: {"type":"text","text":"..."}
+    - Array of blocks: [{"type":"text","text":"..."}]
     The inner text values may contain literal newlines, so strict=False is
     required for the JSON decoder.
     """
     if not text or not isinstance(text, str):
         return text
     stripped = text.strip()
-    if not (stripped.startswith("[") and stripped.endswith("]")):
-        return text
-    try:
-        blocks = json.JSONDecoder(strict=False).decode(stripped)
-        if isinstance(blocks, list) and blocks:
-            parts = [b.get("text", "") for b in blocks
-                     if isinstance(b, dict) and b.get("type") == "text"]
-            if parts:
-                return "".join(parts)
-    except (json.JSONDecodeError, TypeError, ValueError):
-        pass
+
+    # Handle single content block object
+    if stripped.startswith('{"type":"text"'):
+        try:
+            block = json.JSONDecoder(strict=False).decode(stripped)
+            if isinstance(block, dict) and block.get("type") == "text" and "text" in block:
+                return block["text"]
+        except (json.JSONDecodeError, TypeError, ValueError):
+            pass
+
+    # Handle array of content blocks
+    if stripped.startswith("[") and stripped.endswith("]"):
+        try:
+            blocks = json.JSONDecoder(strict=False).decode(stripped)
+            if isinstance(blocks, list) and blocks:
+                parts = [b.get("text", "") for b in blocks
+                         if isinstance(b, dict) and b.get("type") == "text"]
+                if parts:
+                    return "".join(parts)
+        except (json.JSONDecodeError, TypeError, ValueError):
+            pass
+
     return text
 
 

@@ -280,15 +280,32 @@ async function lazyInit(userId, actorId, channel) {
 
 /**
  * Extract plain text from message content — handles string, array of content
- * blocks, or JSON-serialized array of content blocks.
+ * blocks, single content block object, or JSON-serialized variants.
  */
 function extractTextFromContent(content) {
   if (!content) return "";
+
   // Already a parsed array of content blocks
   if (Array.isArray(content)) {
     return content.filter(b => b.type === "text").map(b => b.text).join("");
   }
+
+  // Single content block object
+  if (typeof content === "object" && content.type === "text" && content.text) {
+    return content.text;
+  }
+
   if (typeof content === "string") {
+    // Check if the string is a JSON-serialized single content block
+    if (content.trim().startsWith('{"type":"text"')) {
+      try {
+        const parsed = JSON.parse(content);
+        if (parsed.type === "text" && parsed.text) {
+          return parsed.text;
+        }
+      } catch {}
+    }
+
     // Check if the string is a JSON-serialized array of content blocks
     if (content.startsWith("[{")) {
       try {
@@ -298,9 +315,11 @@ function extractTextFromContent(content) {
         }
       } catch {}
     }
+
     // Plain text string
     return content;
   }
+
   return "";
 }
 
